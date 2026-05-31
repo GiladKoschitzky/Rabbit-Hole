@@ -32,7 +32,7 @@
   --sat:0;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;overflow:hidden}
+html,body{height:100%;height:100dvh;overflow:hidden}
 body{
   background:var(--bg);
   color:var(--txt);
@@ -66,7 +66,7 @@ body{
 .wgo{font-family:'Spline Sans Mono',monospace;font-size:10.5px;color:var(--faint);letter-spacing:.06em}
 
 /* ===== RESPONSIVE: phone default; widen + left rail on laptop ===== */
-#app{display:flex;flex-direction:column;height:100dvh;max-width:100%;margin:0;position:relative;width:100%}
+#app{display:flex;flex-direction:column;height:100vh;height:100dvh;max-width:100%;margin:0;position:relative;width:100%}
 
 @media (min-aspect-ratio:1/1){
   body{overflow:hidden}
@@ -154,6 +154,8 @@ header{
   .lib{position:fixed;top:0;left:0;bottom:0;width:84%;max-width:340px;z-index:110;
     transform:translateX(-100%);transition:transform .3s cubic-bezier(.22,1,.36,1);border-right:1px solid var(--line)}
   #app.libopen .lib{transform:none}
+  /* push the drawer's search below the notch/status area so the header doesn't cover it */
+  .lib-head{padding-top:calc(14px + env(safe-area-inset-top))}
   .lib-mini{display:none !important}
   .lib-scrim{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(3px);z-index:105;opacity:0;pointer-events:none;transition:.3s}
   #app.libopen .lib-scrim{opacity:1;pointer-events:auto}
@@ -194,6 +196,9 @@ main{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;p
 .body p:first-of-type::first-letter{font-size:3.1em;float:left;line-height:.8;padding:6px 10px 0 0;font-weight:900;color:var(--accent)}
 .lnk{color:var(--txt);border-bottom:1.5px solid var(--accent);cursor:pointer;font-weight:500;transition:.2s}
 .lnk:active{background:var(--glow)}
+.wlnk{color:var(--accent);cursor:pointer;font-weight:500;border-bottom:1px solid var(--accent);transition:.18s;border-radius:2px;padding:0 1px}
+.wlnk:hover{background:var(--glow)}
+.wlnk::after{content:'↗';font-size:.7em;vertical-align:super;opacity:.6;margin-left:1px}
 .sec-h{font-weight:600;font-size:21px;margin:26px 0 8px;letter-spacing:-.01em}
 
 /* expand chips */
@@ -232,10 +237,10 @@ main{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;p
 nav{
   display:flex;border-top:1px solid var(--line);background:var(--panel);
   position:relative;z-index:20;width:100%;
-  padding-bottom:env(safe-area-inset-bottom);
+  padding-bottom:max(env(safe-area-inset-bottom), 4px);
 }
 nav button{
-  flex:1;background:none;border:none;color:var(--faint);padding:12px 0 16px;cursor:pointer;
+  flex:1;background:none;border:none;color:var(--faint);padding:11px 0 10px;cursor:pointer;
   font-family:'Spline Sans Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;
   display:flex;flex-direction:column;align-items:center;gap:5px;transition:.2s;
 }
@@ -263,6 +268,13 @@ nav .fab:active .ring{transform:scale(.9)}
 .modelhint{font-family:'Spline Sans Mono',monospace;font-size:11px;color:var(--faint);margin-bottom:14px;line-height:1.5}
 .err{color:#e0625b;font-family:'Spline Sans Mono',monospace;font-size:12px;margin-bottom:12px;display:none}
 .err.show{display:block}
+/* error bubble (non-destructive overlay over the page) */
+#bubbleHost .scrim{align-items:center}
+.bubble{background:var(--panel);border:1px solid var(--line);border-radius:20px;width:calc(100% - 40px);max-width:380px;padding:26px 22px 22px;text-align:left;animation:pop .28s cubic-bezier(.22,1,.36,1)}
+@keyframes pop{from{transform:scale(.92);opacity:0}to{transform:none;opacity:1}}
+.bubble-ic{width:38px;height:38px;border-radius:50%;border:1.5px solid var(--accent);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:20px;margin-bottom:14px;font-family:'Spline Sans Mono',monospace}
+.bubble h2{font-size:21px;font-weight:900;letter-spacing:-.01em;margin-bottom:6px}
+.bubble .note{margin-bottom:18px}
 </style>
 </head>
 <body>
@@ -291,6 +303,7 @@ nav .fab:active .ring{transform:scale(.9)}
     <div class="lib-body" id="libBody"></div>
   </aside>
   <div class="lib-scrim" id="libScrim" onclick="closeLib()"></div>
+  <div id="bubbleHost"></div>
 
   <main id="main"></main>
 
@@ -490,7 +503,7 @@ function go(v){
 /* ============================= AI CALL ============================= */
 async function ask(messages, jsonOnly){
   if(overBudget()) throw new AIError('Daily budget reached',
-    `You've hit your $${settings.dailyCap.toFixed(2)} estimated daily cap (≈$${getSpend().usd.toFixed(2)} spent). It resets at midnight, or raise the cap via the settings button. Your Anthropic console limit is the true hard cap.`,false);
+    `You've hit your $${settings.dailyCap.toFixed(2)} estimated daily cap (≈$${getSpend().usd.toFixed(2)} spent). It resets at midnight — or raise the cap / switch to a cheaper model in settings.`,false,'budget');
   let res;
   if(cfg.provider==='anthropic') res=await askAnthropic(messages,jsonOnly);
   else if(cfg.provider==='openai') res=await askOpenAI(messages,jsonOnly);
@@ -501,7 +514,7 @@ async function ask(messages, jsonOnly){
 function stripFence(s){return s.replace(/```json|```/g,'').trim()}
 
 // structured, human-readable error
-class AIError extends Error{constructor(title,hint,retry){super(title);this.title=title;this.hint=hint;this.retry=!!retry;}}
+class AIError extends Error{constructor(title,hint,retry,kind){super(title);this.title=title;this.hint=hint;this.retry=!!retry;this.kind=kind||'generic';}}
 const PROV_LABEL={anthropic:'Claude',openai:'ChatGPT',gemini:'Gemini'};
 const BILLING={anthropic:'console.anthropic.com → Billing',openai:'platform.openai.com → Billing',gemini:'aistudio.google.com (free tier has per-minute limits)'};
 
@@ -513,11 +526,11 @@ async function toError(r){
     case 401: case 403:
       return new AIError('Key rejected',`That ${label} key was refused. Check it’s pasted correctly and still active — tap the key button to re-enter it.`,false);
     case 429:
-      return new AIError('Rate limit / quota hit',
+      return new AIError('Out of credits / rate limit',
         cfg.provider==='gemini'
-          ? `Gemini’s free tier limits how many requests you can make per minute and per day. Wait ~60s and try again, or enable billing in ${BILLING.gemini} to lift the cap.`
-          : `You’ve hit ${label}’s rate limit or run out of credits. Add or check funds at ${BILLING[cfg.provider]}, then retry.`,
-        true);
+          ? `Gemini’s free tier limits requests per minute and per day. Wait ~60s and try again, or enable billing to lift the cap.`
+          : `You’ve hit ${label}’s rate limit or run out of API credits. Top up to keep going.`,
+        true, 'billing');
     case 400:
       return new AIError('Request rejected',detail?detail.slice(0,160):`${label} rejected the request. Your key may not have access to this model or tool.`,false);
     case 500: case 502: case 503: case 529:
@@ -596,22 +609,35 @@ function topicColor(cat, pos){
 function catColor(cat){const c=CATEGORIES[cat]||CATEGORIES.science;return `hsl(${((c.h[0]+c.h[1])/2).toFixed(0)},72%,52%)`;}
 
 /* ============================= GENERATION ============================= */
-const SYS = `You write short, vivid encyclopedia-style entries for a personal exploration app.
+const SYS = `You write short, vivid encyclopedia-style entries for a personal exploration app where readers fall down rabbitholes — starting broad and expanding into specifics.
+
+WRITING PHILOSOPHY (important — this is what makes the app good):
+- Lead with what is genuinely interesting or consequential, not throat-clearing. No "X is a thing that..." openers.
+- Include foundational facts ONLY when they pay off — i.e. when they're load-bearing for understanding the events, ideas, or connections that matter. Example: a person's early life matters if it shapes the story that follows; their birth town does not, unless it does. Skip trivia that leads nowhere.
+- Be concrete: specific events, numbers, names, turning points — not vague summary. Density over breadth.
+- Assume an intelligent, curious reader. Don't over-explain common knowledge.
+- Earn every sentence. If a fact wouldn't change how the reader thinks or what they'd want to explore next, cut it.
+
 Ground facts accurately (use web search if available). Return ONLY valid JSON, no prose, no markdown fences:
 {
  "title": "Topic Name",
  "kicker": "3-5 word descriptor",
  "category": "one of: history, science, technology, nature, arts, people, society, cosmos, mind, earth",
- "position": 0.0,   // a number 0..1 placing this topic WITHIN its category's spectrum (e.g. for science: 0=physics/abstract, 1=applied/biological). Be deliberate so related topics cluster in shade.
+ "position": 0.0,
  "blocks": [ {"h":"optional section heading or empty","p":"one paragraph (2-4 sentences)"} , ... 3 to 5 blocks ],
- "refs": ["OtherTopic","AnotherTopic"],   // 3-6 real, notable, distinct topics genuinely connected to this one
- "expansions": ["Question or angle to explore next", ...],  // 4 short intriguing follow-ups
- "facts": ["A surprising true one-sentence fact", ...],     // 2-4 genuinely surprising "did you know" facts
- "watch": [   // 1-3 real films/documentaries/videos a curious person could actually watch about this
-   {"title":"Exact real title","kind":"film|documentary|video","year":"2020 or empty","note":"one short line on why it's worth it","query":"best youtube/streaming search string to find it"}
- ]
+ "refs": ["OtherTopic","AnotherTopic"],
+ "aliases": ["common abbreviation or nickname for THIS topic's title", "..."],
+ "expansions": ["A specific, deeper angle worth its own page", ...],
+ "facts": ["A surprising true one-sentence fact", ...],
+ "watch": [ {"title":"Exact real title","kind":"film|documentary|video","year":"2020 or empty","note":"why it's worth it","query":"search string to find it"} ]
 }
-RULES: pick the single best category and a thoughtful position so topics in the same sub-area get similar shades. refs MUST be clean proper-noun topic names (no sentences). facts must be TRUE and checkable, not generic. watch items must be REAL, existing titles (never invent) — if unsure a title exists, omit it. The "query" is a plain search phrase (no URL).`;
+FIELD RULES:
+- position: 0..1 placing this topic WITHIN its category's spectrum so related topics cluster in shade. Be deliberate.
+- refs: 3-6 real, notable, distinct proper-noun topics genuinely connected (no sentences).
+- aliases: 0-4 common abbreviations/nicknames for THIS entry's own title (e.g. for "Formula 1": ["F1"]; for "John F. Kennedy": ["JFK","Kennedy"]). Empty if none. Used to detect when other pages mention this topic.
+- expansions: 4 follow-ups that are SPECIFIC and go DEEPER than this entry — each should promise information this page didn't already give. Avoid generic angles ("history of X", "more about X"); prefer pointed ones ("Why X's 1944 decision backfired", "The rivalry between X and Y").
+- facts: 2-4 TRUE, checkable, genuinely surprising facts — not generic.
+- watch: 1-3 REAL existing titles (never invent; omit if unsure). query is a plain search phrase, no URL.`;
 
 // turn a watch item into a safe external search URL (never trust model-supplied raw URLs)
 function watchURL(w){
@@ -632,27 +658,115 @@ function parseEntry(raw){
 let lastAction=null; // remember what to retry
 function retry(){if(lastAction)lastAction();}
 
+// compact, token-smart digest of what the reader already knows (titles + kickers).
+// capped so it never blows up the prompt; prioritizes most-connected + most-recent.
+function knownDigest(limit){
+  const names=data.order;
+  if(!names.length) return '';
+  // score by edge-degree so the "important" topics are always included
+  const deg={};names.forEach(n=>deg[n]=0);
+  Object.entries(data.edges).forEach(([k,w])=>{const[a,b]=k.split('||');if(deg[a]!=null)deg[a]+=w;if(deg[b]!=null)deg[b]+=w;});
+  const ranked=[...names].sort((a,b)=>(deg[b]-deg[a])|| (names.indexOf(b)-names.indexOf(a)));
+  const picked=ranked.slice(0,limit||40);
+  return picked.map(n=>{const k=data.topics[n].kicker;return k?`${n} (${k})`:n;}).join('; ');
+}
+function knownTitles(){return data.order.slice();}
+
 async function generate(topic, parentRef){
   lastAction=()=>generate(topic,parentRef);
   loading(topic==='__RANDOM__'?'finding something…':'researching “'+topic+'”…');
-  const ask1 = topic==='__RANDOM__'
-    ? 'Pick ONE genuinely fascinating, slightly unexpected topic and write its entry. Surprise me — avoid the obvious.'
-    : 'Write the entry for: "'+topic+'".';
+  const known=knownDigest(40);
+  let ask1;
+  if(topic==='__RANDOM__'){
+    ask1='Pick ONE genuinely fascinating, slightly unexpected topic and write its entry. Surprise me — avoid the obvious.';
+    if(known) ask1+=`\n\nThe reader has ALREADY explored these — do NOT pick any of them or a near-duplicate; choose something genuinely new and ideally from a different area:\n${known}`;
+  }else{
+    ask1='Write the entry for: "'+topic+'".';
+    if(known) ask1+=`\n\nFor context, the reader has already explored: ${known}. Where natural, connect to these (via refs), but don't re-explain them.`;
+  }
   try{
     const raw=await ask([{role:'system',content:SYS},{role:'user',content:ask1}],true);
     const obj=parseEntry(raw);
-    const name=obj.title.trim();
-    data.topics[name]={title:name,kicker:obj.kicker||'',category:obj.category||'science',position:(typeof obj.position==='number'?obj.position:0.5),blocks:obj.blocks||[],refs:(obj.refs||[]).map(s=>s.trim()).filter(Boolean),expansions:obj.expansions||[],facts:obj.facts||[],watch:(obj.watch||[]).filter(w=>w&&w.title)};
+    let name=obj.title.trim();
+    // guard: if a random pick still collided with something known, nudge once
+    if(topic==='__RANDOM__' && data.topics[name]){
+      // accept silently rather than loop-spend; it'll just merge into existing node
+    }
+    data.topics[name]={title:name,kicker:obj.kicker||'',category:obj.category||'science',position:(typeof obj.position==='number'?obj.position:0.5),blocks:obj.blocks||[],refs:(obj.refs||[]).map(s=>s.trim()).filter(Boolean),aliases:(obj.aliases||[]).map(s=>String(s).trim()).filter(Boolean),expansions:obj.expansions||[],facts:obj.facts||[],watch:(obj.watch||[]).filter(w=>w&&w.title)};
     if(!data.order.includes(name)) data.order.push(name);
-    // build edges from refs that already exist OR will exist; count repeats = stronger
-    obj.refs.forEach(rf=>{const r=rf.trim();if(r&&r!==name) addEdge(name,r);});
-    if(parentRef) addEdge(parentRef,name);
+    rebuildEdges();
     persist();current=name;renderRead();renderLibrary();
   }catch(e){errorCard(e);}
 }
-function addEdge(a,b){
+function addEdge(a,b,w){
+  if(a===b)return;
   const key=[a,b].sort().join('||');
-  data.edges[key]=(data.edges[key]||0)+1;
+  data.edges[key]=(data.edges[key]||0)+(w||1);
+}
+
+// ---- mention detection (comparison-based, zero tokens) ----
+// full searchable text of a topic's page
+function pageText(t){
+  return [t.title,t.kicker,(t.blocks||[]).map(b=>(b.h||'')+' '+b.p).join(' '),(t.facts||[]).join(' ')].join(' ');
+}
+// build match terms for a topic: its title + aliases, filtered for safety
+function matchTerms(name){
+  const t=data.topics[name];
+  const terms=[name, ...(t.aliases||[])];
+  return terms
+    .map(s=>String(s).trim())
+    .filter(s=>{
+      if(s.length>=3 && !STOPWORDS.has(s.toLowerCase())) return true;
+      // allow short terms ONLY if distinctive: contains a digit (F1, G7) — pure short alpha (AI, US) is too noisy
+      if(s.length===2 && /\d/.test(s)) return true;
+      return false;
+    });
+}
+const STOPWORDS=new Set(['the','and','for','war','art','law','sun','god','age','day','man','men','one','two','new','old','use']);
+// count how many times `target` is mentioned in `text` (by any of its terms), word-boundary, case-insensitive
+function mentionCount(text, name){
+  const low=' '+text.toLowerCase()+' ';
+  let n=0;
+  for(const term of matchTerms(name)){
+    const t=term.toLowerCase();
+    // word-boundary-ish: term surrounded by non-letter/digit
+    let from=0,idx;
+    while((idx=low.indexOf(t,from))>=0){
+      const before=low[idx-1], after=low[idx+t.length];
+      const okB=!/[a-z0-9]/.test(before||' '), okA=!/[a-z0-9]/.test(after||' ');
+      if(okB&&okA) n++;
+      from=idx+t.length;
+    }
+  }
+  return n;
+}
+// rescan ALL pages against ALL other topics; rebuild the entire edge set from real text.
+// this makes linking bidirectional automatically (new topic gets detected in old pages too).
+function rebuildEdges(){
+  const names=data.order;
+  const edges={};
+  for(const src of names){
+    const text=pageText(data.topics[src]);
+    for(const tgt of names){
+      if(tgt===src) continue;
+      const c=mentionCount(text,tgt);
+      if(c>0){
+        const key=[src,tgt].sort().join('||');
+        edges[key]=(edges[key]||0)+c;  // accumulates both directions
+      }
+    }
+  }
+  data.edges=edges;
+}
+// which already-existing topics are mentioned in a given topic's page (for inline linking)
+function detectedLinks(name){
+  const text=pageText(data.topics[name]);
+  const hits=[];
+  for(const tgt of data.order){
+    if(tgt===name) continue;
+    if(mentionCount(text,tgt)>0) hits.push(tgt);
+  }
+  return hits;
 }
 
 /* ============================= RENDER: READ ============================= */
@@ -674,12 +788,24 @@ function renderRead(){
     }
   }
   const t=data.topics[current];
-  const refset=new Set(t.refs.map(r=>r.toLowerCase()));
+  // detected existing topics mentioned in this page -> wiki-style links
+  const present=detectedLinks(current);
   const linkify=(txt)=>{
     let out=txt;
-    t.refs.forEach(r=>{
-      const re=new RegExp('\\b('+r.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')\\b','i');
-      out=out.replace(re,m=>`<span class="lnk" onclick="openRef('${r.replace(/'/g,"\\'")}')">${m}</span>`);
+    // longest terms first so "Formula 1" wins over "Formula"
+    const jobs=[];
+    present.forEach(tgt=>{
+      matchTerms(tgt).sort((a,b)=>b.length-a.length).forEach(term=>jobs.push({tgt,term}));
+    });
+    jobs.sort((a,b)=>b.term.length-a.term.length);
+    const used=[];
+    jobs.forEach(({tgt,term})=>{
+      const re=new RegExp('\\b('+term.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')\\b','i');
+      out=out.replace(re,(m,_g,off)=>{
+        // avoid double-wrapping an already-linked span
+        if(/<[^>]*$/.test(out.slice(0,off))) return m;
+        return `<span class="wlnk" onclick="openExisting('${jsq(tgt)}')" title="${esc(tgt)}">${m}</span>`;
+      });
     });
     return out;
   };
@@ -740,40 +866,73 @@ function openRef(name){
   if(data.topics[name]){current=name;renderRead();}
   else generate(name,current);
 }
+function openExisting(name){ if(data.topics[name]){current=name;closeLib();renderRead();renderLibrary();} }
 async function expand(angle){
   const parent=current;
   lastAction=()=>{current=parent;expand(angle);};
   loading('expanding…');
+  const pt=data.topics[parent];
+  const parentText=(pt.blocks||[]).map(b=>b.p).join(' ');
+  const known=knownDigest(30);
+  let u=`The reader is deep in a rabbithole. They just read an entry on "${parent}" and chose to go DEEPER on this specific angle: "${angle}".\n\n`;
+  u+=`Here is what they ALREADY read on "${parent}" — do NOT repeat any of it:\n"""${parentText}"""\n\n`;
+  u+=`Write a NEW standalone entry that genuinely advances their understanding of "${angle}". It must:\n`;
+  u+=`- Go narrower and deeper than the parent — reveal specifics, mechanisms, events, or consequences the parent only gestured at.\n`;
+  u+=`- Assume the parent's overview as already known; build ON it, don't restate it.\n`;
+  u+=`- Deliver real payoff: the reader should finish knowing something concrete they didn't before.\n`;
+  u+=`Give it a clear standalone title (not just a rephrasing of the parent).`;
+  if(known) u+=`\n\nThe reader has also explored: ${known}. Connect via refs where natural; don't re-explain these.`;
   try{
-    const raw=await ask([{role:'system',content:SYS},
-      {role:'user',content:`In the context of "${parent}", explore this angle as its own entry: "${angle}". Give it a clear standalone title.`}],true);
+    const raw=await ask([{role:'system',content:SYS},{role:'user',content:u}],true);
     const obj=parseEntry(raw);
     const name=obj.title.trim();
-    data.topics[name]={title:name,kicker:obj.kicker||'',category:obj.category||'science',position:(typeof obj.position==='number'?obj.position:0.5),blocks:obj.blocks||[],refs:(obj.refs||[]).map(s=>s.trim()).filter(Boolean),expansions:obj.expansions||[],facts:obj.facts||[],watch:(obj.watch||[]).filter(w=>w&&w.title)};
+    data.topics[name]={title:name,kicker:obj.kicker||'',category:obj.category||'science',position:(typeof obj.position==='number'?obj.position:0.5),blocks:obj.blocks||[],refs:(obj.refs||[]).map(s=>s.trim()).filter(Boolean),aliases:(obj.aliases||[]).map(s=>String(s).trim()).filter(Boolean),expansions:obj.expansions||[],facts:obj.facts||[],watch:(obj.watch||[]).filter(w=>w&&w.title)};
     if(!data.order.includes(name))data.order.push(name);
-    addEdge(parent,name);
-    obj.refs.forEach(rf=>{const r=rf.trim();if(r&&r!==name)addEdge(name,r)});
+    rebuildEdges();
     persist();current=name;renderRead();renderLibrary();
   }catch(e){errorCard(e)}
 }
 function loading(msg){
   document.getElementById('main').innerHTML=`<div class="center"><div class="spinner"></div><div class="loadmsg">${msg}</div></div>`;
 }
+const BILLING_URL={
+  anthropic:'https://console.anthropic.com/settings/billing',
+  openai:'https://platform.openai.com/settings/organization/billing/overview',
+  gemini:'https://aistudio.google.com/app/apikey'
+};
 function errorCard(e){
   const isAI = e && e.title;
-  const title = isAI ? e.title : 'Hit a snag';
-  const hint  = isAI ? e.hint  : (e && e.message ? e.message : 'Something went wrong.');
+  const title = isAI ? e.title : 'Something went wrong';
+  const hint  = isAI ? e.hint  : (e && e.message ? e.message : 'Unexpected error.');
+  const kind  = isAI ? e.kind  : 'generic';
   const canRetry = isAI ? e.retry : true;
   const safe = String(hint).replace(/</g,'&lt;');
-  document.getElementById('main').innerHTML=`<div class="center">
-    <div class="big" style="font-size:25px">${title}</div>
-    <div class="sub" style="line-height:1.55">${safe}</div>
-    <div style="display:flex;gap:9px;flex-wrap:wrap;justify-content:center">
-      ${canRetry?`<button class="btn" style="width:auto;padding:12px 22px" onclick="retry()">Retry</button>`:''}
-      <button class="btn ghost" style="width:auto;padding:12px 22px;margin-top:0" onclick="openKey()">Change key</button>
-      <button class="btn ghost" style="width:auto;padding:12px 22px;margin-top:0" onclick="renderRead()">Back</button>
+
+  // restore the page that was visible before the loading spinner, so nothing is wiped
+  if(view==='map') renderMap(); else renderRead();
+
+  let btns='';
+  if(kind==='billing'){
+    const url=BILLING_URL[cfg.provider]||'#';
+    btns=`<a class="btn" href="${url}" target="_blank" rel="noopener" style="display:block;text-decoration:none;text-align:center">Get more credits ↗</a>
+          <button class="btn ghost" onclick="closeBubble()">Okay…</button>`;
+  }else if(kind==='budget'){
+    btns=`<button class="btn" onclick="closeBubble();openKey()">Settings — raise cap / switch model</button>
+          <button class="btn ghost" onclick="closeBubble()">Okay…</button>`;
+  }else{
+    btns=`${canRetry?`<button class="btn" onclick="closeBubble();retry()">Retry</button>`:''}
+          <button class="btn ghost" onclick="closeBubble()">Okay…</button>`;
+  }
+  const host=document.getElementById('bubbleHost');
+  host.innerHTML=`<div class="scrim show" onclick="if(event.target===this)closeBubble()">
+    <div class="bubble" onclick="event.stopPropagation()">
+      <div class="bubble-ic">!</div>
+      <h2>${esc(title)}</h2>
+      <p class="note">${safe}</p>
+      ${btns}
     </div></div>`;
 }
+function closeBubble(){document.getElementById('bubbleHost').innerHTML='';}
 
 /* ============================= RENDER: MAP ============================= */
 function renderMap(){
