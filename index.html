@@ -32,7 +32,7 @@
   --sat:0;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;height:100dvh;overflow:hidden}
+html,body{height:100%;overflow:hidden}
 body{
   background:var(--bg);
   color:var(--txt);
@@ -66,7 +66,7 @@ body{
 .wgo{font-family:'Spline Sans Mono',monospace;font-size:10.5px;color:var(--faint);letter-spacing:.06em}
 
 /* ===== RESPONSIVE: phone default; widen + left rail on laptop ===== */
-#app{display:flex;flex-direction:column;height:100vh;height:100dvh;max-width:100%;margin:0;position:relative;width:100%}
+#app{display:flex;flex-direction:column;height:100%;max-width:100%;margin:0;position:relative;width:100%}
 
 @media (min-aspect-ratio:1/1){
   body{overflow:hidden}
@@ -75,7 +75,7 @@ body{
     grid-template-columns:var(--libw) 1fr;
     grid-template-rows:auto 1fr auto;
     grid-template-areas:"head head" "lib main" "lib nav";
-    max-width:100%;width:100%;height:100dvh;margin:0;
+    max-width:100%;width:100%;height:100vh;margin:0;
     --libw:clamp(220px,22vw,340px);
     transition:grid-template-columns .42s cubic-bezier(.4,0,.2,1);
   }
@@ -237,10 +237,10 @@ main{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;p
 nav{
   display:flex;border-top:1px solid var(--line);background:var(--panel);
   position:relative;z-index:20;width:100%;
-  padding-bottom:max(env(safe-area-inset-bottom), 4px);
+  padding-bottom:env(safe-area-inset-bottom);
 }
 nav button{
-  flex:1;background:none;border:none;color:var(--faint);padding:11px 0 10px;cursor:pointer;
+  flex:1;background:none;border:none;color:var(--faint);padding:11px 0 11px;cursor:pointer;
   font-family:'Spline Sans Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;
   display:flex;flex-direction:column;align-items:center;gap:5px;transition:.2s;
 }
